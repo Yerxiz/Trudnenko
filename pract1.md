@@ -16,3 +16,24 @@
   7) "|" - конвейер
   8) sort - сортировка, -r - инвертированная, -n - сортировка по числам
   9) head - вывести первые N строк, -N - кол-во строк
+
+## Задание 3
+Ответ:
+#!/usr/bin/env bash
+
+text="${1 :- }"
+len=${#text}
+border="+"
+
+for ((i=0; i < len + 2; i++)); do
+border+="-"
+
+border+="+"
+
+printf "%s\n" "$border"
+printf "| %s |\n" "$text"
+printf "%s\n" "$border"
+
+done
+
+## Задание 4
