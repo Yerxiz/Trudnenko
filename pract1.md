@@ -21,7 +21,7 @@
 Ответ:
 #!/usr/bin/env bash
 
-text="${1 :- }"
+text="${1:-}"
 len=${#text}
 border="+"
 
@@ -37,3 +37,12 @@ printf "%s\n" "$border"
 done
 
 ## Задание 4
+Ответ:
+#!/usr/bin/env bash
+
+file="${1 :?Usage: $0 FILE}"
+
+grep -o '[A-Za-z_][A-Za-z0-9_]*' "$file" | sort -u
+
+1) sort -u - убирает дубликаты (u - unique)
+2) grep -o - выводит только совпадения
