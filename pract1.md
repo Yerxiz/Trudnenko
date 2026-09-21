@@ -46,3 +46,53 @@ grep -o '[A-Za-z_][A-Za-z0-9_]*' "$file" | sort -u
 
 1) sort -u - убирает дубликаты (u - unique)
 2) grep -o - выводит только совпадения
+
+## Задание 5
+Ответ:
+#!/usr/bin/env bash
+
+set -eou pipefail
+
+name="${1:?Usage: $0 FILE}"
+
+if [[ ! -f "$name" ]]; then
+echo "Ошибка: '$name' не найден" >&2
+exit 1
+
+fi
+
+if [[ "$(head -c 2 "$name")" != "#!" ]]; then
+echo "Ошибка: '#name' не является скриптом (нет #!)" >&2
+exit 1
+
+fi
+
+chmod 755 "$name"
+
+dest="/usr/local/bin/$ (basename "$name")"
+cp "$name" "$dest"
+chmod 755 "$dest"
+
+echo "OK: $name -> $dest (755)"
+
+
+## Задание 6
+Ответ:
+
+
+## Задание 7
+Ответ:
+
+
+## Задание 8
+Ответ:
+
+
+## Задание 9
+Ответ:
+
+
+## Задание 10
+Ответ:
+
+
