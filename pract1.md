@@ -56,14 +56,14 @@ set -eou pipefail
 name="${1:?Usage: $0 FILE}"
 
 if [[ ! -f "$name" ]]; then
-echo "Ошибка: '$name' не найден" >&2
-exit 1
+  echo "Ошибка: '$name' не найден" >&2
+  exit 1
 
 fi
 
 if [[ "$(head -c 2 "$name")" != "#!" ]]; then
-echo "Ошибка: '#name' не является скриптом (нет #!)" >&2
-exit 1
+  echo "Ошибка: '#name' не является скриптом (нет #!)" >&2
+  exit 1
 
 fi
 
@@ -78,7 +78,43 @@ echo "OK: $name -> $dest (755)"
 
 ## Задание 6
 Ответ:
+#!/usr/bin/env bash
 
+set -euo pipefail
+
+dir="${1:-.}"
+
+if [[ ! -d "$dir" ]]; then
+  echo "Ошибка: '$dir' не каталог" >&2
+  exit 1
+fi
+
+while IFS= read -r -d '' file; do
+  IFS= read -r first < "$file" || first=""
+
+  ext="${file## *. }"
+  has comment=0
+
+  case "$ext" in
+    c|js)
+      if [[ "$first" =~ ^[[:space:]]*(//|/\*) ]]; then
+        has_comment=1
+      fi
+      ;;
+    py)
+      if [[ "$first" =~ ^[[:space: ]]*# ]]; then
+        has_comment=1
+      fi
+      ;;
+  esac
+
+  if (( has_comment )); then
+    echo "OK $file"
+  else
+    echo "NO $file"
+  fi
+
+done < <(find "$dir" -type f \( -name '*.c' -o -name '*.js' -o -name '*.py' \) -print0)
 
 ## Задание 7
 Ответ:
