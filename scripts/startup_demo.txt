@@ -1,0 +1,10 @@
+# Демонстрационный стартовый скрипт
+# Пустые строки и строки, начинающиеся с #, пропускаются
+
+ls -la /
+cd /home
+cd "My Documents"
+ls 'file with spaces.txt' regular.txt
+cd /tmp
+ls
+exit
