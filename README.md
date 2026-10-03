@@ -29,9 +29,8 @@
 ### Запуск
 
 ```bash
-
 python3 src/terminal.py
-
+```
 
 
 ## Этап 2. Конфигурация
@@ -50,3 +49,4 @@ python3 src/terminal.py
 ```bash
 python3 src/terminal.py --vfs ./vfs
 python3 src/terminal.py --vfs ./vfs --script scripts/startup_demo.txt
+```
