@@ -1,0 +1,32 @@
+{
+  "type": "directory",
+  "children": {
+    "level1": {
+      "type": "directory",
+      "children": {
+        "f1.txt": { "type": "file", "content": "Content of f1\n" },
+        "level2": {
+          "type": "directory",
+          "children": {
+            "f2.txt": { "type": "file", "content": "Content of f2\n" },
+            "level3": {
+              "type": "directory",
+              "children": {
+                "sibling.txt": { "type": "file", "content": "Sibling\n" },
+                "level4": {
+                  "type": "directory",
+                  "children": {
+                    "deep.txt": {
+                      "type": "file",
+                      "content": "Deeply nested file\n"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

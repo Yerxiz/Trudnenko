@@ -1,0 +1,9 @@
+{
+  "type": "directory",
+  "children": {
+    "hello.txt": {
+      "type": "file",
+      "content": "Hello, VFS!\n"
+    }
+  }
+}

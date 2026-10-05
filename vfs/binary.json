@@ -1,0 +1,15 @@
+{
+  "type": "directory",
+  "children": {
+    "bin": {
+      "type": "directory",
+      "children": {
+        "data.bin": {
+          "type": "file",
+          "encoding": "base64",
+          "content": "SGVsbG8sIGJpbmFyeSB3b3JsZCEK"
+        }
+      }
+    }
+  }
+}

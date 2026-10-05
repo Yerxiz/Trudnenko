@@ -1,0 +1,38 @@
+{
+  "type": "directory",
+  "children": {
+    "etc": {
+      "type": "directory",
+      "children": {
+        "hosts": { "type": "file", "content": "127.0.0.1 localhost\n" },
+        "os-release": {
+          "type": "file",
+          "content": "NAME=EmulatorOS\nVERSION=1.0\n"
+        }
+      }
+    },
+    "home": {
+      "type": "directory",
+      "children": {
+        "user": {
+          "type": "directory",
+          "children": {
+            "notes.txt": {
+              "type": "file",
+              "content": "First note\nSecond note\n"
+            },
+            "todo.md": {
+              "type": "file",
+              "content": "# TODO\n- Learn VFS\n- Take over the world\n"
+            }
+          }
+        }
+      }
+    },
+    "tmp": { "type": "directory", "children": {} },
+    "readme.txt": {
+      "type": "file",
+      "content": "Welcome to the emulated shell!\n"
+    }
+  }
+}

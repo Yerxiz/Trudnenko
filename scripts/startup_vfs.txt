@@ -1,0 +1,38 @@
+# Комплексный тест команд: pwd, ls, cd, cat, tree, exit
+# Работа с VFS + обработка ошибок
+
+pwd
+ls
+cd /etc
+pwd
+ls
+cat hosts
+cat os-release
+tree
+cd /home/user
+pwd
+ls
+cat notes.txt
+cat todo.md
+tree
+
+# Проверка относительных путей
+cd ..
+pwd
+cd ../..
+pwd
+
+# Проверка ошибок
+cd /nowhere
+cd /etc/hosts
+cat /etc/missing
+cat
+ls /etc /tmp
+
+# Возврат и проверка корня
+cd /
+pwd
+ls
+tree
+
+exit
