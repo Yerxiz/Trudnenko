@@ -42,6 +42,11 @@ echo === 7. Ошибка: несуществующий стартовый скр
 echo Exit code: %ERRORLEVEL%
 
 echo.
+echo === 8. Полный тест команд этапа 4 ===
+%PY% "%ROOT%\src\terminal.py" --vfs "%VFS%\basic.json" --script "%SCRIPT_DIR%startup_stage4.txt"
+echo Exit code: %ERRORLEVEL%
+
+echo.
 echo === Все тесты завершены ===
 pause >nul
 endlocal

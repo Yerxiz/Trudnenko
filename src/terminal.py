@@ -120,6 +120,22 @@ class VFS:
                 raise VFSError(f"invalid base64 in {target}: {exc}") from exc
         return content.encode("utf-8")
 
+    def stat(self, cwd: str, path: str) -> dict:
+        """Информация об узле: {'type': 'file'|'directory', 'size': int}."""
+        target = self.normalize(cwd, path)
+        node = self._node(target)
+        t = node.get("type")
+        if t == "directory":
+            return {"type": "directory", "size": len(node.get("children", {}))}
+        content = node.get("content", "")
+        size = len(content)
+        if node.get("encoding") == "base64":
+            try:
+                size = len(base64.b64decode(content, validate=True))
+            except Exception:
+                pass  # fallback — длина строки
+        return {"type": "file", "size": size}
+
     def tree_lines(self, cwd: str, path: str = "") -> list[str]:
         target = self.normalize(cwd, path)
         node = self._node(target)
@@ -142,12 +158,16 @@ class VFS:
 
 
 class Console:
+    COMMANDS = ("ls", "cd", "cat", "pwd", "tree",
+                "history", "head", "rev", "exit")
+
     def __init__(self, vfs: VFS, script_path: str | None = None) -> None:
         self.running = True
         self.prompt = "username@hostname:~$ "
         self.vfs = vfs
         self.script_path = os.path.abspath(script_path) if script_path else None
         self.cwd = "/"  # логический путь внутри vfs
+        self.history: list[list[str]] = []
 
     # ---------- Диагностика ----------
     def dump_config(self, vfs_source: str) -> None:
@@ -177,6 +197,7 @@ class Console:
     def execute(self, argv: list[str]) -> None:
         if not argv:
             return
+        self.history.append(argv)
         cmd, args = argv[0], argv[1:]
         handlers = {
             "ls": self.cmd_ls,
@@ -184,6 +205,9 @@ class Console:
             "cat": self.cmd_cat,
             "pwd": self.cmd_pwd,
             "tree": self.cmd_tree,
+            "history": self.cmd_history,
+            "head": self.cmd_head,
+            "rev": self.cmd_rev,
             "exit": self.cmd_exit
         }
         handler = handlers.get(cmd)
@@ -195,18 +219,59 @@ class Console:
         except VFSError as exc:
             print(f"{cmd}: {exc}", file=sys.stderr)
 
-    # ---------- Команды ----------
+    # ---------- exit ----------
     def cmd_exit(self, argv: list[str]) -> None:
         self.running = False
 
+    # ---------- ls ----------
     def cmd_ls(self, argv: list[str]) -> None:
-        if len(argv) > 1:
-            raise VFSError("too many arguments")
-        path = argv[0] if argv else ""
-        names = self.vfs.list_dir(self.cwd, path)
-        if names:
-            print("  ".join(names))
+        long_fmt = False
+        paths: list[str] = []
+        for arg in argv:
+            if arg == "-l":
+                long_fmt = True
+            elif arg.startswith("-") and len(arg) > 1:
+                raise VFSError(f"invalid option -- '{arg}'")
+            else:
+                paths.append(arg)
+        if not paths:
+            paths = [""]
 
+        multi = len(paths) > 1
+        for idx, p in enumerate(paths):
+            if multi:
+                if idx > 0:
+                    print()
+                print(f"{p or '.'}:")
+            self._print_dir(p, long_fmt)
+
+    def _print_dir(self, path: str, long_fmt: bool) -> None:
+        names = self.vfs.list_dir(self.cwd, path)
+        if not names:
+            return
+        if long_fmt:
+            for n in names:
+                child = self._join_path(path, n)
+                info = self.vfs.stat(self.cwd, child)
+                t = "d" if info["type"] == "directory" else "-"
+                suffix = "/" if info["type"] == "directory" else ""
+                print(f"{t} {info['size']:>6}  {n}{suffix}")
+        else:
+            out = []
+            for n in names:
+                child = self._join_path(path, n)
+                info = self.vfs.stat(self.cwd, child)
+                suffix = "/" if info["type"] == "directory" else ""
+                out.append(n + suffix)
+            print("  ".join(out))
+
+    @staticmethod
+    def _join_path(base: str, name: str) -> str:
+        if not base:
+            return name
+        return base.rstrip("/") + "/" + name
+
+    # ---------- cd ----------
     def cmd_cd(self, argv: list[str]) -> None:
         if len(argv) > 1:
             raise VFSError("too many arguments")
@@ -215,6 +280,7 @@ class Console:
             raise VFSError(f"not a directory: {argv[0] if argv else '/'}")
         self.cwd = target
 
+    # ---------- cat ----------
     def cmd_cat(self, argv: list[str]) -> None:
         if not argv:
             raise VFSError("missing file operand")
@@ -225,9 +291,11 @@ class Console:
             if not text.endswith("\n"):
                 sys.stdout.write("\n")
 
+    # ---------- pwd ----------
     def cmd_pwd(self, argv: list[str]) -> None:
         print(self.cwd)
 
+    # ---------- tree ----------
     def cmd_tree(self, argv: list[str]) -> None:
         if len(argv) > 1:
             raise VFSError("too many arguments")
@@ -236,6 +304,75 @@ class Console:
         print(target)
         for line in self.vfs.tree_lines(self.cwd, path):
             print(line)
+
+    # ---------- history ----------
+    def cmd_history(self, argv: list[str]) -> None:
+        if argv and argv[0] == "-c":
+            self.history.clear()
+            return
+        if len(argv) > 1:
+            raise VFSError("too many arguments")
+
+        if argv and argv[0].isdigit():
+            n = int(argv[0])
+            start = max(0, len(self.history) - n)
+        else:
+            start = 0
+
+        width = len(str(len(self.history))) if self.history else 1
+        for i, cmd in enumerate(self.history[start:], start=start + 1):
+            print(f"{i:>{width}}  {shlex.join(cmd)}")
+
+    # ---------- head ----------
+    def cmd_head(self, argv: list[str]) -> None:
+        n = 10
+        files: list[str] = []
+        i = 0
+        while i < len(argv):
+            arg = argv[i]
+            if arg == "-n":
+                i += 1
+                if i >= len(argv):
+                    raise VFSError("option requires an argument -- 'n'")
+                try:
+                    n = int(argv[i])
+                except ValueError:
+                    raise VFSError(f"invalid number of lines: {argv[i]}")
+            elif arg.startswith("-n") and len(arg) > 2:
+                try:
+                    n = int(arg[2:])
+                except ValueError:
+                    raise VFSError(f"invalid number of lines: {arg[2:]}")
+            elif (arg.startswith("-") and len(arg) > 1
+                  and arg[1:].isdigit()):
+                n = int(arg[1:])  # old-style: head -5 file
+            elif arg.startswith("-") and arg != "-":
+                raise VFSError(f"invalid option -- '{arg}'")
+            else:
+                files.append(arg)
+            i += 1
+
+        if not files:
+            raise VFSError("missing file operand")
+        if n < 0:
+            raise VFSError(f"invalid number of lines: {n}")
+
+        for f in files:
+            data = self.vfs.read_file(self.cwd, f)
+            text = data.decode("utf-8", errors="replace")
+            lines = text.splitlines()
+            for line in lines[:n]:
+                print(line)
+
+    # ---------- rev ----------
+    def cmd_rev(self, argv: list[str]) -> None:
+        if not argv:
+            raise VFSError("missing file operand")
+        for path in argv:
+            data = self.vfs.read_file(self.cwd, path)
+            text = data.decode("utf-8", errors="replace")
+            for line in text.splitlines():
+                print(line[::-1])
 
     def run_script(self) -> None:
         if not self.script_path:
@@ -259,7 +396,7 @@ class Console:
                     continue
                 if not argv:
                     continue
-                if argv[0] not in ['ls', 'cd', 'cat', 'pwd', 'tree', 'exit']:
+                if argv[0] not in self.COMMANDS:
                     print(f"script:{lineno}: {argv[0]}: command not found", file=sys.stderr)
                     continue
                 try:

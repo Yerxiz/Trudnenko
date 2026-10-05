@@ -31,3 +31,6 @@ Run-Case "6. Ошибка: неверный JSON" @(
 Run-Case "7. Ошибка: несуществующий стартовый скрипт" @(
     "--vfs", (Join-Path $Vfs "basic.json"),
     "--script", (Join-Path $ScriptDir "no_such_script.txt"))
+Run-Case "8. Полный тест команд этапа 4" @(
+    "--vfs", (Join-Path $Vfs "basic.json"),
+    "--script", (Join-Path $ScriptDir "startup_stage4.txt"))

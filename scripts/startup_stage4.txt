@@ -1,0 +1,60 @@
+# Тест команд этапа 4: ls, cd, history, head, rev
+# Плюс базовые команды этапа 3 и обработка ошибок
+
+# --- ls: варианты использования ---
+ls
+ls -l
+ls /
+ls /etc /home
+ls -l /etc/hosts
+ls /nowhere
+
+# --- cd: рабочая логика ---
+pwd
+cd /etc
+pwd
+ls -l
+cd ..
+pwd
+cd /home/user
+pwd
+ls
+cd /etc/hosts
+cd /nowhere
+pwd
+
+# --- head: на файле с несколькими строками ---
+cat /home/user/notes.txt
+head /home/user/notes.txt
+head -n 1 /home/user/notes.txt
+head -n1 /home/user/notes.txt
+head -2 /home/user/notes.txt
+head -n 0 /home/user/notes.txt
+head -n abc /home/user/notes.txt
+head /etc/hosts
+head /nowhere
+head
+
+# --- rev: переворот строк ---
+cat /etc/os-release
+rev /etc/os-release
+rev /home/user/notes.txt
+cat /home/user/todo.md
+rev /home/user/todo.md
+rev /nowhere
+rev
+
+# --- history ---
+history
+history 5
+history abc
+
+# --- проверка ошибок прочих команд ---
+cat /etc/missing
+ls /etc/hosts/foo
+cd /etc/hosts
+tree /etc/hosts
+
+# --- история в конце: содержит всё, что было выше ---
+history 10
+exit
