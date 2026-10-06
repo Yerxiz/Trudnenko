@@ -18,8 +18,6 @@ class VFSError(Exception):
 
 
 class VFS:
-    """Виртуальная ФС, полностью загруженная в память из JSON."""
-
     def __init__(self, root: dict) -> None:
         if not isinstance(root, dict) or root.get("type") != "directory":
             raise VFSError("VFS root must be a 'directory' node")
@@ -140,14 +138,6 @@ class VFS:
 
     def copy(self, cwd: str, src: str, dst: str,
              into_dir: bool = False, recursive: bool = False) -> str:
-        """
-        Копирует src в dst внутри VFS.
-
-        into_dir=True  — копировать внутрь dst как в директорию (имя сохраняется).
-        into_dir=False — dst задаёт полное имя нового узла.
-
-        Возвращает абсолютный путь созданной копии.
-        """
         src_abs = self.normalize(cwd, src)
         src_node = self._node(src_abs)
 
@@ -366,13 +356,19 @@ class Console:
     # ---------- history ----------
     def cmd_history(self, argv: list[str]) -> None:
         if argv and argv[0] == "-c":
+            if len(argv) > 1:
+                raise VFSError("too many arguments")
             self.history.clear()
             return
+
         if len(argv) > 1:
             raise VFSError("too many arguments")
 
-        if argv and argv[0].isdigit():
-            n = int(argv[0])
+        if argv:
+            arg = argv[0]
+            if not arg.isdigit():
+                raise VFSError(f"{arg}: numeric argument required")
+            n = int(arg)
             start = max(0, len(self.history) - n)
         else:
             start = 0
