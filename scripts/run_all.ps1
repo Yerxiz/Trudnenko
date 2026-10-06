@@ -34,3 +34,6 @@ Run-Case "7. Ошибка: несуществующий стартовый ск�
 Run-Case "8. Полный тест команд этапа 4" @(
     "--vfs", (Join-Path $Vfs "basic.json"),
     "--script", (Join-Path $ScriptDir "startup_stage4.txt"))
+Run-Case "9. Копирование cp (этап 5)" @(
+    "--vfs", (Join-Path $Vfs "basic.json"),
+    "--script", (Join-Path $ScriptDir "startup_stage5.txt"))

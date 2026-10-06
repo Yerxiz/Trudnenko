@@ -1,0 +1,62 @@
+# Тест команды cp на всех режимах
+# VFS при этом НЕ изменяется на диске — всё делается в памяти.
+
+# --- Исходное состояние ---
+tree
+ls -l /etc
+ls -l /home/user
+
+# --- Простое копирование файла ---
+cp /etc/hosts /etc/hosts.bak
+ls -l /etc
+cat /etc/hosts.bak
+
+# --- Копирование файла в существующую директорию ---
+cp /etc/hosts /tmp
+ls -l /tmp
+
+# --- Копирование нескольких файлов в директорию ---
+cp /etc/hosts /etc/os-release /tmp
+ls -l /tmp
+
+# --- Копирование с переименованием в текущей директории ---
+cd /home/user
+cp notes.txt notes-copy.txt
+ls -l
+cat notes-copy.txt
+
+# --- Копирование директории без -r: ошибка ---
+cp /etc /etc-copy
+ls
+
+# --- Копирование директории с -r ---
+cd /
+cp -r /etc /etc-backup
+ls
+tree /etc-backup
+
+# --- Копирование директории внутрь другой директории ---
+cp -r /home/user /tmp
+tree /tmp
+
+# --- Проверка независимости копий ---
+cd /etc
+cp hosts hosts2
+cat hosts2
+cat hosts
+
+# --- Ошибочные сценарии ---
+cp
+cp /etc/hosts
+cp /nonexistent /tmp
+cp /etc/hosts /etc/hosts
+cp /etc/hosts /etc/nonexistent_dir/
+cp /etc /etc-backup
+cp -r /etc /etc
+cp -x /etc /tmp
+cp /etc/hosts /etc/os-release /etc/hosts
+
+# --- Финальное состояние VFS (в памяти, диск не изменён) ---
+cd /
+tree
+exit

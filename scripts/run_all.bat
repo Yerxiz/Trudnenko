@@ -47,6 +47,11 @@ echo === 8. Полный тест команд этапа 4 ===
 echo Exit code: %ERRORLEVEL%
 
 echo.
+echo === 9. Копирование cp (этап 5) ===
+%PY% "%ROOT%\src\terminal.py" --vfs "%VFS%\basic.json" --script "%SCRIPT_DIR%startup_stage5.txt"
+echo Exit code: %ERRORLEVEL%
+
+echo.
 echo === Все тесты завершены ===
 pause >nul
 endlocal

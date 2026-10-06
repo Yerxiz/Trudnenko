@@ -6,6 +6,7 @@ import sys
 import getpass
 import socket
 import shlex
+import copy as _copy
 
 # Чтобы box-drawing символы корректно печатались в Windows-консоли
 if hasattr(sys.stdout, "reconfigure"):
@@ -24,7 +25,6 @@ class VFS:
             raise VFSError("VFS root must be a 'directory' node")
         self.root = root
 
-    # ---------- Загрузка и валидация ----------
     @classmethod
     def from_file(cls, path: str) -> "VFS":
         if not os.path.isfile(path):
@@ -62,7 +62,6 @@ class VFS:
         else:
             raise VFSError(f"unknown VFS node type: {t!r}")
 
-    # ---------- Внутренние помощники ----------
     @staticmethod
     def normalize(cwd: str, path: str) -> str:
         """Абсолютный нормализованный путь относительно cwd."""
@@ -95,7 +94,6 @@ class VFS:
             node = children[part]
         return node
 
-    # ---------- Публичные операции ----------
     def is_dir(self, abs_path: str) -> bool:
         return self._node(abs_path).get("type") == "directory"
 
@@ -119,6 +117,65 @@ class VFS:
             except Exception as exc:
                 raise VFSError(f"invalid base64 in {target}: {exc}") from exc
         return content.encode("utf-8")
+
+    def _exists(self, abs_path: str) -> bool:
+        try:
+            self._node(abs_path)
+            return True
+        except VFSError:
+            return False
+
+    @staticmethod
+    def _split(abs_path: str) -> tuple[str, str]:
+        if abs_path == "/":
+            raise VFSError("cannot operate on root directory")
+        parts = abs_path.strip("/").split("/")
+        name = parts[-1]
+        parent = "/" + "/".join(parts[:-1]) if len(parts) > 1 else "/"
+        return parent, name
+
+    def parent_dir(self, abs_path: str) -> dict:
+        parent_abs, _ = self._split(abs_path)
+        return self._node(parent_abs)
+
+    def copy(self, cwd: str, src: str, dst: str,
+             into_dir: bool = False, recursive: bool = False) -> str:
+        """
+        Копирует src в dst внутри VFS.
+
+        into_dir=True  — копировать внутрь dst как в директорию (имя сохраняется).
+        into_dir=False — dst задаёт полное имя нового узла.
+
+        Возвращает абсолютный путь созданной копии.
+        """
+        src_abs = self.normalize(cwd, src)
+        src_node = self._node(src_abs)
+
+        if src_node.get("type") == "directory" and not recursive:
+            raise VFSError(f"-r not specified; omitting directory '{src}'")
+
+        if into_dir:
+            name = src_abs.rstrip("/").split("/")[-1]
+            dst_abs = self.normalize(cwd, dst.rstrip("/") + "/" + name)
+        else:
+            dst_abs = self.normalize(cwd, dst)
+
+        # Проверки
+        if dst_abs == src_abs:
+            raise VFSError(f"'{src}' and '{dst}' are the same file")
+        if self._exists(dst_abs):
+            raise VFSError(f"cannot overwrite '{dst}'")
+        if (src_node.get("type") == "directory"
+                and dst_abs.startswith(src_abs + "/")):
+            raise VFSError(f"cannot copy '{src}' into itself")
+
+        parent_abs, name = self._split(dst_abs)
+        parent = self._node(parent_abs)
+        if parent.get("type") != "directory":
+            raise VFSError(f"not a directory: {parent_abs}")
+
+        parent.setdefault("children", {})[name] = _copy.deepcopy(src_node)
+        return dst_abs
 
     def stat(self, cwd: str, path: str) -> dict:
         """Информация об узле: {'type': 'file'|'directory', 'size': int}."""
@@ -159,7 +216,7 @@ class VFS:
 
 class Console:
     COMMANDS = ("ls", "cd", "cat", "pwd", "tree",
-                "history", "head", "rev", "exit")
+                "history", "head", "rev", "cp", "exit")
 
     def __init__(self, vfs: VFS, script_path: str | None = None) -> None:
         self.running = True
@@ -208,6 +265,7 @@ class Console:
             "history": self.cmd_history,
             "head": self.cmd_head,
             "rev": self.cmd_rev,
+            "cp": self.cmd_cp,
             "exit": self.cmd_exit
         }
         handler = handlers.get(cmd)
@@ -373,6 +431,46 @@ class Console:
             text = data.decode("utf-8", errors="replace")
             for line in text.splitlines():
                 print(line[::-1])
+
+    def cmd_cp(self, argv: list[str]) -> None:
+        if not argv:
+            raise VFSError("missing file operand")
+
+        recursive = False
+        paths: list[str] = []
+        for arg in argv:
+            if arg in ("-r", "-R", "-rR", "-Rr"):
+                recursive = True
+            elif arg.startswith("-") and len(arg) > 1:
+                raise VFSError(f"invalid option -- '{arg}'")
+            else:
+                paths.append(arg)
+
+        if len(paths) < 2:
+            raise VFSError("missing destination file operand")
+
+        *sources, dest = paths
+
+        dest_abs = self.vfs.normalize(self.cwd, dest)
+        dest_is_dir = False
+        try:
+            dest_is_dir = self.vfs.is_dir(dest_abs)
+        except VFSError:
+            pass
+
+        if len(sources) > 1 and not dest_is_dir:
+            raise VFSError(f"target '{dest}' is not a directory")
+
+        for src in sources:
+            new_path = self.vfs.copy(
+                cwd=self.cwd,
+                src=src,
+                dst=dest,
+                into_dir=dest_is_dir,
+                recursive=recursive,
+            )
+            # Диагностическая строка в стиле BSD/macOS cp -v
+            print(f"'{src}' -> '{new_path}'")
 
     def run_script(self) -> None:
         if not self.script_path:
