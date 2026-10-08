@@ -410,7 +410,8 @@ class Console:
 
     @staticmethod
     def _read_n_option(argv: list[str], i: int) -> tuple[int, int]:
-        """Читает '-n N' из argv, начиная с позиции i. Возвращает (N, новый i)."""
+        """Читает '-n N' из argv, начиная с позиции i. 
+        Возвращает (N, новый i)."""
         if i + 1 >= len(argv):
             raise VFSError("option requires an argument -- 'n'")
         return Console._parse_int(argv[i + 1]), i + 2
@@ -442,7 +443,8 @@ class Console:
             raise VFSError("missing file operand")
 
         recursive, paths = self._split_cp_args(argv)
-        if len(paths) < 2:
+        num = 2
+        if len(paths) < num:
             raise VFSError("missing destination file operand")
 
         *sources, dest = paths
