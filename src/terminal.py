@@ -8,7 +8,6 @@ import socket
 import shlex
 import copy as _copy
 
-# Чтобы box-drawing символы корректно печатались в Windows-консоли
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
@@ -38,27 +37,40 @@ class VFS:
 
     @classmethod
     def _validate(cls, node: dict) -> None:
+        """Рекурсивная проверка структуры VFS."""
         if not isinstance(node, dict):
             raise VFSError("each VFS node must be a JSON object")
         t = node.get("type")
         if t == "directory":
-            children = node.get("children", {})
-            if not isinstance(children, dict):
-                raise VFSError("directory 'children' must be an object")
-            for name, child in children.items():
-                if not isinstance(name, str) or not name or "/" in name:
-                    raise VFSError(f"invalid entry name: {name!r}")
-                cls._validate(child)
+            cls._validate_directory(node)
         elif t == "file":
-            if "content" not in node:
-                raise VFSError("file node must have 'content'")
-            if not isinstance(node["content"], str):
-                raise VFSError("file 'content' must be a string")
-            enc = node.get("encoding", "utf-8")
-            if enc not in ("utf-8", "base64"):
-                raise VFSError(f"unsupported file encoding: {enc!r}")
+            cls._validate_file(node)
         else:
             raise VFSError(f"unknown VFS node type: {t!r}")
+
+    @classmethod
+    def _validate_directory(cls, node: dict) -> None:
+        children = node.get("children", {})
+        if not isinstance(children, dict):
+            raise VFSError("directory 'children' must be an object")
+        for name, child in children.items():
+            cls._validate_entry_name(name)
+            cls._validate(child)
+
+    @staticmethod
+    def _validate_entry_name(name: object) -> None:
+        if not isinstance(name, str) or not name or "/" in name:
+            raise VFSError(f"invalid entry name: {name!r}")
+
+    @classmethod
+    def _validate_file(cls, node: dict) -> None:
+        if "content" not in node:
+            raise VFSError("file node must have 'content'")
+        if not isinstance(node["content"], str):
+            raise VFSError("file 'content' must be a string")
+        enc = node.get("encoding", "utf-8")
+        if enc not in ("utf-8", "base64"):
+            raise VFSError(f"unsupported file encoding: {enc!r}")
 
     @staticmethod
     def normalize(cwd: str, path: str) -> str:
@@ -74,7 +86,6 @@ class VFS:
             if p == "..":
                 if parts:
                     parts.pop()
-                # выше корня — не выходим, остаёмся в "/"
             else:
                 parts.append(p)
         return "/" + "/".join(parts) if parts else "/"
@@ -150,7 +161,6 @@ class VFS:
         else:
             dst_abs = self.normalize(cwd, dst)
 
-        # Проверки
         if dst_abs == src_abs:
             raise VFSError(f"'{src}' and '{dst}' are the same file")
         if self._exists(dst_abs):
@@ -180,7 +190,7 @@ class VFS:
             try:
                 size = len(base64.b64decode(content, validate=True))
             except Exception:
-                pass  # fallback — длина строки
+                pass
         return {"type": "file", "size": size}
 
     def tree_lines(self, cwd: str, path: str = "") -> list[str]:
@@ -205,18 +215,18 @@ class VFS:
 
 
 class Console:
-    COMMANDS = ("ls", "cd", "cat", "pwd", "tree",
+    commands = ("ls", "cd", "cat", "pwd", "tree",
                 "history", "head", "rev", "cp", "exit")
 
     def __init__(self, vfs: VFS, script_path: str | None = None) -> None:
         self.running = True
         self.prompt = "username@hostname:~$ "
         self.vfs = vfs
-        self.script_path = os.path.abspath(script_path) if script_path else None
-        self.cwd = "/"  # логический путь внутри vfs
+        self.script_path = os.path.abspath(script_path) if script_path \
+            else None
+        self.cwd = "/"
         self.history: list[list[str]] = []
 
-    # ---------- Диагностика ----------
     def dump_config(self, vfs_source: str) -> None:
         root_children = len(self.vfs.root.get("children", {}))
         print("=== Shell Emulator: configuration ===")
@@ -225,14 +235,12 @@ class Console:
         print(f"Startup script : {self.script_path or '<none>'}")
         print("=========================================")
 
-    # ---------- Приглашение ----------
     def get_prompt(self) -> str:
         user = getpass.getuser()
-        host = socket.gethostname().split(".")[0]  # короткое имя хоста
+        host = socket.gethostname().split(".")[0]
         self.prompt = f"{user}@{host}:{self.cwd}$ "
         return self.prompt
 
-    # ---------- Парсер ----------
     @staticmethod
     def parse(line: str) -> list[str]:
         try:
@@ -240,7 +248,6 @@ class Console:
         except ValueError as exc:
             raise ValueError(f"parse error: {exc}") from exc
 
-    # ---------- Диспетчер ----------
     def execute(self, argv: list[str]) -> None:
         if not argv:
             return
@@ -267,11 +274,9 @@ class Console:
         except VFSError as exc:
             print(f"{cmd}: {exc}", file=sys.stderr)
 
-    # ---------- exit ----------
     def cmd_exit(self, argv: list[str]) -> None:
         self.running = False
 
-    # ---------- ls ----------
     def cmd_ls(self, argv: list[str]) -> None:
         long_fmt = False
         paths: list[str] = []
@@ -319,7 +324,6 @@ class Console:
             return name
         return base.rstrip("/") + "/" + name
 
-    # ---------- cd ----------
     def cmd_cd(self, argv: list[str]) -> None:
         if len(argv) > 1:
             raise VFSError("too many arguments")
@@ -328,7 +332,6 @@ class Console:
             raise VFSError(f"not a directory: {argv[0] if argv else '/'}")
         self.cwd = target
 
-    # ---------- cat ----------
     def cmd_cat(self, argv: list[str]) -> None:
         if not argv:
             raise VFSError("missing file operand")
@@ -339,11 +342,9 @@ class Console:
             if not text.endswith("\n"):
                 sys.stdout.write("\n")
 
-    # ---------- pwd ----------
     def cmd_pwd(self, argv: list[str]) -> None:
         print(self.cwd)
 
-    # ---------- tree ----------
     def cmd_tree(self, argv: list[str]) -> None:
         if len(argv) > 1:
             raise VFSError("too many arguments")
@@ -353,7 +354,6 @@ class Console:
         for line in self.vfs.tree_lines(self.cwd, path):
             print(line)
 
-    # ---------- history ----------
     def cmd_history(self, argv: list[str]) -> None:
         if argv and argv[0] == "-c":
             if len(argv) > 1:
@@ -377,48 +377,57 @@ class Console:
         for i, cmd in enumerate(self.history[start:], start=start + 1):
             print(f"{i:>{width}}  {shlex.join(cmd)}")
 
-    # ---------- head ----------
     def cmd_head(self, argv: list[str]) -> None:
-        n = 10
-        files: list[str] = []
-        i = 0
-        while i < len(argv):
-            arg = argv[i]
-            if arg == "-n":
-                i += 1
-                if i >= len(argv):
-                    raise VFSError("option requires an argument -- 'n'")
-                try:
-                    n = int(argv[i])
-                except ValueError:
-                    raise VFSError(f"invalid number of lines: {argv[i]}")
-            elif arg.startswith("-n") and len(arg) > 2:
-                try:
-                    n = int(arg[2:])
-                except ValueError:
-                    raise VFSError(f"invalid number of lines: {arg[2:]}")
-            elif (arg.startswith("-") and len(arg) > 1
-                  and arg[1:].isdigit()):
-                n = int(arg[1:])  # old-style: head -5 file
-            elif arg.startswith("-") and arg != "-":
-                raise VFSError(f"invalid option -- '{arg}'")
-            else:
-                files.append(arg)
-            i += 1
-
+        n, files = self._parse_head_args(argv)
         if not files:
             raise VFSError("missing file operand")
         if n < 0:
             raise VFSError(f"invalid number of lines: {n}")
+        for path in files:
+            self._print_head(path, n)
 
-        for f in files:
-            data = self.vfs.read_file(self.cwd, f)
-            text = data.decode("utf-8", errors="replace")
-            lines = text.splitlines()
-            for line in lines[:n]:
-                print(line)
+    @staticmethod
+    def _parse_head_args(argv: list[str]) -> tuple[int, list[str]]:
+        """Разбирает аргументы head: опции в начале, затем файлы.
 
-    # ---------- rev ----------
+        Поддерживаются: -n N, -nN, -N. Опции должны идти до имён файлов.
+        """
+        n = 10
+        i = 0
+        while i < len(argv) and Console._is_head_option(argv[i]):
+            arg = argv[i]
+            if arg == "-n":
+                n, i = Console._read_n_option(argv, i)
+            else:
+                n = Console._parse_int(
+                    arg[2:] if arg.startswith("-n") else arg[1:])
+                i += 1
+        return n, argv[i:]
+
+    @staticmethod
+    def _is_head_option(arg: str) -> bool:
+        return arg.startswith("-") and arg != "-"
+
+    @staticmethod
+    def _read_n_option(argv: list[str], i: int) -> tuple[int, int]:
+        """Читает '-n N' из argv, начиная с позиции i. Возвращает (N, новый i)."""
+        if i + 1 >= len(argv):
+            raise VFSError("option requires an argument -- 'n'")
+        return Console._parse_int(argv[i + 1]), i + 2
+
+    @staticmethod
+    def _parse_int(value: str) -> int:
+        try:
+            return int(value)
+        except ValueError:
+            raise VFSError(f"invalid number of lines: {value}")
+
+    def _print_head(self, path: str, n: int) -> None:
+        data = self.vfs.read_file(self.cwd, path)
+        text = data.decode("utf-8", errors="replace")
+        for line in text.splitlines()[:n]:
+            print(line)
+
     def cmd_rev(self, argv: list[str]) -> None:
         if not argv:
             raise VFSError("missing file operand")
@@ -432,27 +441,12 @@ class Console:
         if not argv:
             raise VFSError("missing file operand")
 
-        recursive = False
-        paths: list[str] = []
-        for arg in argv:
-            if arg in ("-r", "-R", "-rR", "-Rr"):
-                recursive = True
-            elif arg.startswith("-") and len(arg) > 1:
-                raise VFSError(f"invalid option -- '{arg}'")
-            else:
-                paths.append(arg)
-
+        recursive, paths = self._split_cp_args(argv)
         if len(paths) < 2:
             raise VFSError("missing destination file operand")
 
         *sources, dest = paths
-
-        dest_abs = self.vfs.normalize(self.cwd, dest)
-        dest_is_dir = False
-        try:
-            dest_is_dir = self.vfs.is_dir(dest_abs)
-        except VFSError:
-            pass
+        dest_is_dir = self._is_dir_or_false(dest)
 
         if len(sources) > 1 and not dest_is_dir:
             raise VFSError(f"target '{dest}' is not a directory")
@@ -465,51 +459,82 @@ class Console:
                 into_dir=dest_is_dir,
                 recursive=recursive,
             )
-            # Диагностическая строка в стиле BSD/macOS cp -v
             print(f"'{src}' -> '{new_path}'")
+
+    @staticmethod
+    def _split_cp_args(argv: list[str]) -> tuple[bool, list[str]]:
+        """Отделяет флаги (-r, -R, -rR, -Rr) от путей."""
+        recursive = False
+        paths: list[str] = []
+        for arg in argv:
+            if arg in ("-r", "-R", "-rR", "-Rr"):
+                recursive = True
+            elif arg.startswith("-") and len(arg) > 1:
+                raise VFSError(f"invalid option -- '{arg}'")
+            else:
+                paths.append(arg)
+        return recursive, paths
+
+    def _is_dir_or_false(self, path: str) -> bool:
+        """True, если path — существующая директория в VFS. Иначе False."""
+        try:
+            target = self.vfs.normalize(self.cwd, path)
+            return self.vfs.is_dir(target)
+        except VFSError:
+            return False
 
     def run_script(self) -> None:
         if not self.script_path:
             return
         if not os.path.isfile(self.script_path):
-            print(f"error: startup script not found: {self.script_path}", file=sys.stderr)
+            print(f"error: startup script not found: {self.script_path}",
+                  file=sys.stderr)
             return
 
         print(f"--- Executing startup script: {self.script_path} ---")
         with open(self.script_path, "r", encoding="utf-8") as f:
             for lineno, raw in enumerate(f, start=1):
-                line = raw.rstrip("\n")
-                if not line.strip() or line.lstrip().startswith("#"):
-                    continue
-
-                print(f"{self.get_prompt()}{line}")
-                try:
-                    argv = self.parse(line)
-                except ValueError as exc:
-                    print(f"script:{lineno}: {exc}", file=sys.stderr)
-                    continue
-                if not argv:
-                    continue
-                if argv[0] not in self.COMMANDS:
-                    print(f"script:{lineno}: {argv[0]}: command not found", file=sys.stderr)
-                    continue
-                try:
-                    self.execute(argv)
-                except Exception as exc:
-                    print(f"script:{lineno}: runtime error: {exc}", file=sys.stderr)
-                if not self.running:
+                if not self._run_script_line(raw, lineno):
                     break
         print("--- Startup script finished ---")
 
-    # ---------- REPL ----------
+    def _run_script_line(self, raw: str, lineno: int) -> bool:
+        """Обрабатывает одну строку скрипта.
+        Возвращает False, если работу скрипта надо прервать
+        (пользователь ввёл exit). True — продолжать.
+        """
+        line = raw.rstrip("\n")
+        if not line.strip() or line.lstrip().startswith("#"):
+            return True
+
+        print(f"{self.get_prompt()}{line}")
+        try:
+            argv = self.parse(line)
+        except ValueError as exc:
+            print(f"script:{lineno}: {exc}", file=sys.stderr)
+            return True
+
+        if not argv:
+            return True
+        if argv[0] not in self.commands:
+            print(f"script:{lineno}: {argv[0]}: command not found",
+                  file=sys.stderr)
+            return True
+
+        try:
+            self.execute(argv)
+        except Exception as exc:
+            print(f"script:{lineno}: runtime error: {exc}", file=sys.stderr)
+        return self.running
+
     def repl(self) -> None:
         while self.running:
             try:
                 line = input(self.get_prompt())
-            except EOFError:  # Ctrl+D
+            except EOFError:
                 print()
                 break
-            except KeyboardInterrupt:  # Ctrl+C
+            except KeyboardInterrupt:
                 print()
                 continue
             try:
